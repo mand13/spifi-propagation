@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
 
 class Wavefront:
     def __init__(self, size_m, resolution, wavelength):
@@ -144,8 +145,58 @@ class SiemensStar(Target):
         star_mask = SiemensStar.create_siemens_star(N, num_spokes=32, supersample=8)
         wavefront.field *= star_mask
     
+class PhotoDiode(OpticalElement):
+    def __init__(self, radius):
+        self.radius = radius
+    
+    def apply(self, wavefront):
+        """ Simulate photodiode detection by integrating intensity over its area. """
+        intensity = wavefront.get_intensity()
+        dx = wavefront.L / wavefront.N
+        radius_pixels = int(self.radius / dx)
+        center = wavefront.N // 2
+
+        y, x = np.ogrid[-center:wavefront.N-center, -center:wavefront.N-center]
+        mask = x**2 + y**2 <= radius_pixels**2
+
+        detected_signal = np.sum(intensity[mask]) * (dx**2) # integrate intensity over area
+        return detected_signal
+
+class IdealSPIFIMask(OpticalElement):
+    """ SPIFI mask that is idealized (true sine wave pattern)."""
+    def apply(self, wavefront, total_time, dt, min_grating_period):
+        """
+        Takes in a wavefront, which has X,Y
+        Outputs total_time/dt frames of the wavefront after applying the SPIFI mask at each time step.
+        """
+        N = wavefront.N
+        x = np.linspace(-wavefront.L/2, wavefront.L/2, N)
+        X, Y = np.meshgrid(x, x)
+        frames = []
+        for t in np.arange(-total_time/2, total_time/2, dt):
+            spatial_freq = (2 / (total_time * min_grating_period)) * t
+            spifi_pattern = 0.5 * (1 + np.cos(2 * np.pi * spatial_freq * X))
+            wavefront_copy = copy.deepcopy(wavefront)
+            wavefront_copy.field *= spifi_pattern
+            frames.append(wavefront_copy)
+        return frames
+
+class RealSPIFIMask(OpticalElement):
+    """ SPIFI mask that is more realistic (binary pattern with partial pixel values)."""
+
+class SPIFISignalToImageConverter:
+    """ Converts the time-varying signal from the photodiode into an image. """
+    def signal_to_image(self, signal, dt, image_size):
+        """
+        Docstring for signal_to_image
+        
+        :param signal: Description
+        :param dt: time between each frame in signal (in seconds)
+        :param image_size: Description
+        """
 
 
 
-#TODO photodiode, spifi mask, (maybe more samples if I have time?)
+
+#TODO spifi mask, spifi signal to image converter, (maybe more samples if I have time?)
 
