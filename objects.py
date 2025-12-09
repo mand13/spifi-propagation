@@ -47,10 +47,11 @@ class Wavefront:
 # --- Component Classes ---
 
 class OpticalElement:
+    """ Base class for optical elements: things that ineract with the wavefront. """
     def apply(self, wavefront):
         raise NotImplementedError("This method should be implemented by subclasses.")
     
-class Lens(OpticalElement):
+class ConvergingLens(OpticalElement):
     def __init__(self, focal_length):
         self.focal_length = focal_length
     
@@ -61,4 +62,90 @@ class Lens(OpticalElement):
         phase = - (k / (2 * self.focal_length)) * (X**2 + Y**2)
         lens_phase = np.exp(1j * phase)
         wavefront.field *= lens_phase
+
+class CylindricalLens(OpticalElement):
+    def __init__(self, focal_length, orientation='horizontal'):
+        self.focal_length = focal_length
+        self.orientation = orientation
+    
+    def apply(self, wavefront):
+        """ Apply cylindrical lens phase transformation to the wavefront. (Thin lens approximation) """
+        k = wavefront.k
+        X, Y = wavefront.X, wavefront.Y
+        if self.orientation == 'horizontal':
+            phase = - (k / (2 * self.focal_length)) * (Y**2)
+        else: # vertical
+            phase = - (k / (2 * self.focal_length)) * (X**2)
+        lens_phase = np.exp(1j * phase)
+        wavefront.field *= lens_phase
+
+class Target(OpticalElement):
+    """ Base class for targets: objects that we want to image using wavefronts. """
+    def apply(self, wavefront):
+        raise NotImplementedError("This method should be implemented by subclasses.")
+
+class SiemensStar(Target):
+    def __init__(self, radius):
+        self.radius = radius
+
+    def create_siemens_star(resolution, num_spokes, supersample=8):
+        """
+        NOTE: function generated entirely by Google Gemini
+
+        Generates a Siemens star with anti-aliasing (partial pixel values).
+        
+        Args:
+            resolution (int): The width and height of the output image in pixels.
+            num_spokes (int): The number of spokes (cycles of black/white). 
+                            Note: A "spoke" here usually implies a pair of black/white wedges.
+            supersample (int): The factor by which to upscale for area calculation.
+                            Higher values = more accurate partial pixel values.
+                            Default is 8 (64 sub-pixels per pixel).
+        
+        Returns:
+            np.ndarray: A 2D numpy array with values between 0.0 and 1.0.
+        """
+        # 1. Calculate the high-resolution grid size
+        high_res = resolution * supersample
+        
+        # 2. Create the coordinate grid
+        # We center the grid so (0,0) is in the middle of the image
+        x = np.linspace(-1, 1, high_res)
+        y = np.linspace(-1, 1, high_res)
+        xv, yv = np.meshgrid(x, y)
+        
+        # 3. Calculate the polar angle (theta) for every sub-pixel
+        # arctan2 handles the quadrants correctly
+        theta = np.arctan2(yv, xv)
+        
+        # 4. Generate the binary mask
+        # The sine of (num_spokes * theta) creates the alternating pattern.
+        # We use a threshold > 0 to make it binary (0 or 1).
+        # We add a small phase shift if desired, but here we stick to standard alignment.
+        star_pattern = np.sin(num_spokes * theta)
+        
+        # Convert to binary (0.0 or 1.0)
+        binary_high_res = (star_pattern > 0).astype(np.float64)
+        
+        # 5. Downsample to calculate proportional area (average pooling)
+        # We reshape the array to separate the super-sampled blocks
+        # Shape becomes (Resolution, Supersample, Resolution, Supersample)
+        reshaped = binary_high_res.reshape(resolution, supersample, resolution, supersample)
+        
+        # We take the mean over the supersampling axes (axis 1 and 3)
+        # This results in the average value (area coverage) for that pixel block
+        anti_aliased_image = reshaped.mean(axis=(1, 3))
+        
+        return anti_aliased_image
+    
+    def apply(self, wavefront):
+        """ Apply the Siemens star mask to the wavefront intensity. """
+        N = wavefront.N
+        star_mask = SiemensStar.create_siemens_star(N, num_spokes=32, supersample=8)
+        wavefront.field *= star_mask
+    
+
+
+
+#TODO photodiode, spifi mask, (maybe more samples if I have time?)
 
