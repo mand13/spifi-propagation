@@ -97,40 +97,27 @@ class Target(OpticalElement):
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class SiemensStar(Target):
-    # TODO make size of star correct and fix weird bugs
+    """ Siemens star target with anti-aliasing. """
+    def __init__(self, wavefront, radius, vertical_shift=0.0, num_spokes=32, supersample=8):
+        self.image = SiemensStar.create_siemens_star(radius=radius, vertical_shift=vertical_shift, num_spokes=num_spokes, size_m=wavefront.L, resolution=wavefront.N, supersample=supersample)
+        self.L = wavefront.L
+        self.N = wavefront.N
 
-    def __init__(self, radius, vertical_shift=0.0, resolution=512, num_spokes=32, supersample=8):
-        self.radius = radius
-        self.vertical_shift = vertical_shift
-        self.resolution = resolution
-        self.num_spokes = num_spokes
-        self.supersample = supersample
-
-    def create_siemens_star(self):
+    @staticmethod
+    def create_siemens_star(radius, vertical_shift=0.0, num_spokes=32, size_m=512, resolution=512, supersample=8):
         """
-        NOTE: function generated entirely by Google Gemini
+        NOTE: function adapted largely from Google Gemini output
 
         Generates a Siemens star with anti-aliasing (partial pixel values).
-        
-        Args:
-            resolution (int): The width and height of the output image in pixels.
-            num_spokes (int): The number of spokes (cycles of black/white). 
-                            Note: A "spoke" here usually implies a pair of black/white wedges.
-            supersample (int): The factor by which to upscale for area calculation.
-                            Higher values = more accurate partial pixel values.
-                            Default is 8 (64 sub-pixels per pixel).
-        
-        Returns:
-            np.ndarray: A 2D numpy array with values between 0.0 and 1.0.
         """
         # 1. Calculate the high-resolution grid size
-        high_res = self.resolution * self.supersample
+        high_res = resolution * supersample
         
         # 2. Create the coordinate grid
         # We center the grid so (0,0) is in the middle of the image
         # shift coordinates vertically
-        x = np.linspace(-1, 1, high_res)
-        y = np.linspace(-1 + self.vertical_shift, 1 + self.vertical_shift, high_res)
+        x = np.linspace(-size_m/2, size_m/2, high_res)
+        y = np.linspace(-size_m/2 + vertical_shift, size_m/2 + vertical_shift, high_res)
         xv, yv = np.meshgrid(x, y)
         
         # 3. Calculate the polar angle (theta) for every sub-pixel
@@ -141,19 +128,19 @@ class SiemensStar(Target):
         # The sine of (num_spokes * theta) creates the alternating pattern.
         # We use a threshold > 0 to make it binary (0 or 1).
         # We add a small phase shift if desired, but here we stick to standard alignment.
-        star_pattern = np.sin(self.num_spokes * theta)
+        star_pattern = np.sin(num_spokes * theta)
         
         # Convert to binary (0.0 or 1.0)
         binary_high_res = (star_pattern > 0).astype(np.float64)
 
         # apply circular mask to limit to radius
         R = np.sqrt(xv**2 + yv**2)
-        binary_high_res[R > 1] = 1.0
+        binary_high_res[R > radius] = 1.0
         
         # 5. Downsample to calculate proportional area (average pooling)
         # We reshape the array to separate the super-sampled blocks
         # Shape becomes (Resolution, Supersample, Resolution, Supersample)
-        reshaped = binary_high_res.reshape(self.resolution, self.supersample, self.resolution, self.supersample)
+        reshaped = binary_high_res.reshape(resolution, supersample, resolution, supersample)
         
         # We take the mean over the supersampling axes (axis 1 and 3)
         # This results in the average value (area coverage) for that pixel block
@@ -163,24 +150,26 @@ class SiemensStar(Target):
     
     def apply(self, wavefront):
         """ Apply the Siemens star mask to the wavefront intensity. """
-        star_mask = self.create_siemens_star()
-        wavefront.field *= star_mask
+        wavefront.field *= self.image
 
-    def plot(self, resolution=512):
-        """ Plot the Siemens star target. """
-        star_image = self.create_siemens_star()
-        plt.imshow(star_image, extent=(-self.radius, self.radius, -self.radius, self.radius), cmap='gray')
-        plt.colorbar(label='Transmission')
+    def plot(self, wavefront=None):
+        """ Plot the Siemens star target with optionally overlayed wavefront intensity. """
+        plt.imshow(self.image, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), cmap='gray')
+        if wavefront is not None:
+            intensity = wavefront.get_intensity()
+            plt.imshow(intensity, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), alpha=0.5)
+        #plt.colorbar(label='Transmission')
         plt.title("Siemens Star Target")
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
         plt.show()
+
     
-class PhotoDiode(OpticalElement):
+class Photodiode(OpticalElement):
     def __init__(self, radius):
         self.radius = radius
     
-    def apply(self, wavefront):
+    def detect(self, wavefront):
         """ Simulate photodiode detection by integrating intensity over its area. """
         intensity = wavefront.get_intensity()
         dx = wavefront.L / wavefront.N
@@ -217,7 +206,8 @@ class RealSPIFIMask(OpticalElement):
 
 class SPIFISignalToImageConverter:
     """ Converts the time-varying signal from the photodiode into a 1D image. """
-    def signal_to_image(self, signal, dt, image_size):
+    @staticmethod
+    def signal_to_image(signal, dt):
         """
         Docstring for signal_to_image
         
@@ -227,6 +217,7 @@ class SPIFISignalToImageConverter:
         """
         # Perform Fourier Transform on the signal
         freq_domain = np.fft.fftshift(np.fft.fft(signal))
+        f = np.fft.fftshift(np.fft.fftfreq(len(signal), d=dt))
         magnitude = np.abs(freq_domain)
 
         # TODO determine if this works/makes sense # Normalize and reshape to form an image
@@ -235,9 +226,9 @@ class SPIFISignalToImageConverter:
 
         # plot 1d image
         plt.figure()
-        plt.plot(magnitude)
+        plt.plot(f, magnitude)
         plt.title("SPIFI Signal Frequency Domain")
-        plt.xlabel("Frequency (arbitrary units)")
+        plt.xlabel("Frequency (Hz)")
         plt.ylabel("Magnitude (arbitrary units)")
         plt.grid()
         plt.show()
