@@ -219,10 +219,8 @@ class SiemensStar(Target):
     def plot(self, wavefronts=None, filename=None, show=False):
         """ Plot the Siemens star target with optionally overlayed wavefront intensity. """
         plt.imshow(self.image, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), cmap='gray')
-        # if wavefronts is not None:
-        #     intensity = wavefront.get_intensity()
-        #     plt.imshow(intensity, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), alpha=0.5)
-        #plt.colorbar(label='Transmission')
+        # plot horizontal line at y=0
+        plt.axhline(0, color='red', linestyle='--', label='y=0 line')
         plt.title("Siemens Star Target")
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
@@ -239,7 +237,7 @@ class Photodiode():
         self.signal = np.array([]) # used to store detected signal over time
         self.T = 0
     
-    def detect(self, wavefronts):
+    def detect(self, wavefronts, use_radius_mask=False):
         """ Simulate photodiode detection by integrating intensity over its area. """
         self.signal = np.empty(wavefronts.frames)
         self.T = wavefronts.T
@@ -250,12 +248,19 @@ class Photodiode():
         radius_pixels = int(self.radius / dx)
         center = wavefronts.N // 2
         y, x = np.ogrid[-center:wavefronts.N-center, -center:wavefronts.N-center]
-        mask = x**2 + y**2 <= radius_pixels**2
+
+        if use_radius_mask:
+            mask = x**2 + y**2 <= radius_pixels**2
         
-        # Apply mask to all frames efficiently
-        for i in range(wavefronts.frames):
-            detected_signal = np.sum(intensities[i][mask]) * (dx**2) # integrate intensity over area
-            self.signal[i] = detected_signal
+            # Apply mask to all frames efficiently
+            for i in range(wavefronts.frames):
+                detected_signal = np.sum(intensities[i][mask]) * (dx**2) # integrate intensity over area
+                self.signal[i] = detected_signal
+        else:
+            # No mask, integrate over entire wavefront
+            for i in range(wavefronts.frames):
+                detected_signal = np.sum(intensities[i]) * (dx**2) # integrate intensity over area
+                self.signal[i] = detected_signal
         
     def plot_signal(self, filename=None, show=False):
         """ Plot the detected photodiode signal over time. """

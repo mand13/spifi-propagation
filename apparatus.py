@@ -8,28 +8,33 @@ import numpy as np
 
 import objects
 
+
+
+
+# --- MODIFY SIMULATION PARAMETERS BELOW ---
+
 # estimated run time ~ 1 hour
 
 # --- Simulation Setup ---
-total_time = 0.01  # total simulation time in seconds
+total_time = 0.02  # total simulation time in seconds
 dt = 0.0001       # time step in seconds
 size_m = 0.01    # size of the wavefront in meters
-resolution = 1024   # resolution of the wavefront grid (num pixels per side)
+resolution = 2048   # resolution of the wavefront grid (num pixels per side)
 wavelength = 670e-9 # wavelength of light in meters (red light)
 
 # --- SPIFI Mask Parameters ---
-min_grating_period = (size_m / resolution) * 10 # minimum grating period in meters
+min_grating_period = (size_m / resolution) * 3 # minimum grating period in meters
 
 # --- Target Parameters ---
-siemens_radius = 0.001 # radius of Siemens star in meters
+siemens_radius = 0.004 # radius of Siemens star in meters
 num_spokes = 32 # number of spokes in Siemens star
-vertical_shift = 0.0005 # vertical shift of Siemens star center in meters
+vertical_shift = 0.002 # vertical shift of Siemens star center in meters
 
 # --- Photodiode Parameters ---
 photodiode_radius = 0.01 # radius of photodiode in meters
 
 # --- Plotting and Output ---
-plot_dir = "first_real_normalized_test"
+plot_dir = "plz_work"
 show_plots = False
 normalize = True # run a second simulation without the target for normalization
 logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
@@ -41,6 +46,13 @@ if fast_debug:
     resolution = 256
     min_grating_period = (size_m / resolution) * 10
     num_spokes = 8
+
+# --- END OF MODIFIABLE PARAMETERS ---
+
+
+
+
+
 
 
 
