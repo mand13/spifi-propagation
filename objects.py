@@ -21,7 +21,7 @@ class Wavefronts:
 
         # initial gaussian beam
         init_field = np.ones((self.N, self.N), dtype=complex)
-        # TODO uncomment this init_field *= np.exp(- (self.X**2 + self.Y**2) / (0.1 * self.L)**2)
+        init_field *= np.exp(- (self.X**2 + self.Y**2) / (0.1 * self.L)**2)
 
         # 3d numpy array to track field through time
         self.fields = np.empty((frames, resolution, resolution), dtype=complex)
@@ -285,6 +285,7 @@ class Photodiode():
         plt.title("SPIFI Signal Frequency Domain")
         plt.xlabel("Frequency (Hz)")
         plt.ylabel("Magnitude (arbitrary units)")
+        plt.yscale('log')
         plt.grid()
         if not filename is None:
             plt.savefig(filename)
