@@ -1,5 +1,10 @@
 # objects.py
 
+# EXPERIMENTAL ON DAYSTROM LINES
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend for plotting
+# ^^ END OF DAYSTROM LINES ^^
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation

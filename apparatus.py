@@ -1,5 +1,10 @@
 # apparatus.py
 
+# EXPERIMENTAL ON DAYSTROM LINES
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend for plotting
+# ^^ END OF DAYSTROM LINES ^^
+
 import time
 import logging
 import os
@@ -13,14 +18,12 @@ import objects
 
 # --- MODIFY SIMULATION PARAMETERS BELOW ---
 
-# estimated run time ~ 1 hour
-
 # --- Simulation Setup ---
-total_time = 0.02  # total simulation time in seconds
-dt = 0.0001       # time step in seconds
-size_m = 0.01    # size of the wavefront in meters
+total_time = 0.1  # total simulation time in seconds
+dt = 0.000048828125       # time step in seconds
+size_m = 0.005    # size of the wavefront in meters
 resolution = 2048   # resolution of the wavefront grid (num pixels per side)
-wavelength = 670e-9 # wavelength of light in meters (red light)
+wavelength = 1e-6 # wavelength of light in meters
 
 # --- SPIFI Mask Parameters ---
 min_grating_period = (size_m / resolution) * 3 # minimum grating period in meters
@@ -34,7 +37,7 @@ vertical_shift = 0.002 # vertical shift of Siemens star center in meters
 photodiode_radius = 0.01 # radius of photodiode in meters
 
 # --- Plotting and Output ---
-plot_dir = "plz_work"
+plot_dir = "test8"
 show_plots = False
 normalize = True # run a second simulation without the target for normalization
 logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
@@ -57,6 +60,7 @@ if fast_debug:
 
 
 
+global_start_time = time.time()
 
 PLOT_COUNT = 0
 
@@ -217,8 +221,21 @@ if (normalize):
         plt.show()
     plt.close()
 
+global_elapsed_time = time.time() - global_start_time
+print(f"Total script time: {global_elapsed_time:.2f} seconds.")
 
-
+with open(f"{plot_dir}/apparatus_parameters.txt", "w") as f:
+    f.write(f"total_time = {global_elapsed_time}\n")
+    f.write(f"dt = {dt}\n")
+    f.write(f"size_m = {size_m}\n")
+    f.write(f"resolution = {resolution}\n")
+    f.write(f"wavelength = {wavelength}\n")
+    f.write(f"min_grating_period = {min_grating_period}\n")
+    f.write(f"siemens_radius = {siemens_radius}\n")
+    f.write(f"num_spokes = {num_spokes}\n")
+    f.write(f"vertical_shift = {vertical_shift}\n")
+    f.write(f"photodiode_radius = {photodiode_radius}\n")
+    f.write(f"normalize = {normalize}\n")
 
 
 
