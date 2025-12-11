@@ -85,14 +85,14 @@ def run_simulation(use_target=True):
         wavefronts.plot_wavefront(title="Initial Wavefront", show=show_plots)
     logging.info("Initialized wavefront.")
 
-    # Propagate the wavefront by 0.1 meters to the cylindrical lens
-    wavefronts.propagate(distance=0.1)
-    if plot_dir is not None:
-        wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_0.1m_propagation.png", show=show_plots)
-        PLOT_COUNT += 1
-    elif show_plots:
-        wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", show=show_plots)
-    logging.info("Propagated wavefront to cylindrical lens.")
+    # # Propagate the wavefront by 0.1 meters to the cylindrical lens
+    # wavefronts.propagate(distance=0.1)
+    # if plot_dir is not None:
+    #     wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_0.1m_propagation.png", show=show_plots)
+    #     PLOT_COUNT += 1
+    # elif show_plots:
+    #     wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", show=show_plots)
+    # logging.info("Propagated wavefront to cylindrical lens.")
 
     # Apply a cylindrical lens
     cylindrical_lens = objects.CylindricalLens(focal_length=0.1, orientation='horizontal')
@@ -159,16 +159,16 @@ def run_simulation(use_target=True):
         wavefronts.animate_wavefront(title="Wavefront before Collection Lens Animation", show=show_plots)
     logging.info("Propagated wavefront to collection lens.")
 
-    # Apply collection lens and propagate to detector
-    collection_lens = objects.ConvergingLens(focal_length=0.1)
-    collection_lens.apply(wavefronts)
-    wavefronts.propagate(distance=0.2)
-    if plot_dir is not None:
-        wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_at_photodiode_animation.mp4", show=show_plots)
-        PLOT_COUNT += 1
-    elif show_plots:
-        wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", show=show_plots)
-    logging.info("Applied collection lens and propagated to photodiode.")
+    # # Apply collection lens and propagate to detector
+    # collection_lens = objects.ConvergingLens(focal_length=0.1)
+    # collection_lens.apply(wavefronts)
+    # wavefronts.propagate(distance=0.2)
+    # if plot_dir is not None:
+    #     wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_at_photodiode_animation.mp4", show=show_plots)
+    #     PLOT_COUNT += 1
+    # elif show_plots:
+    #     wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", show=show_plots)
+    # logging.info("Applied collection lens and propagated to photodiode.")
 
     # photodiode detects signal
     detector = objects.Photodiode(radius=photodiode_radius)
