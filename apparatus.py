@@ -3,16 +3,18 @@
 import time
 import logging
 import os
+import matplotlib.pyplot as plt 
+import numpy as np
 
 import objects
 
 # estimated run time ~ 1 hour
 
 # --- Simulation Setup ---
-total_time = 0.1  # total simulation time in seconds
+total_time = 0.01  # total simulation time in seconds
 dt = 0.0001       # time step in seconds
 size_m = 0.01    # size of the wavefront in meters
-resolution = 2048   # resolution of the wavefront grid (num pixels per side)
+resolution = 1024   # resolution of the wavefront grid (num pixels per side)
 wavelength = 670e-9 # wavelength of light in meters (red light)
 
 # --- SPIFI Mask Parameters ---
@@ -27,9 +29,10 @@ vertical_shift = 0.0005 # vertical shift of Siemens star center in meters
 photodiode_radius = 0.01 # radius of photodiode in meters
 
 # --- Plotting and Output ---
-plot_dir = "high_res_long_term_test_01" # use None to not save plots
+plot_dir = "first_real_normalized_test"
 show_plots = False
-logging.basicConfig(level=logging.DEBUG) # Set the root logger level to INFO
+normalize = True # run a second simulation without the target for normalization
+logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
 
 fast_debug = False
 # -- SUPER FAST SIM PARAMETERS FOR TESTING ---
@@ -38,6 +41,10 @@ if fast_debug:
     resolution = 256
     min_grating_period = (size_m / resolution) * 10
     num_spokes = 8
+
+
+
+
 
 PLOT_COUNT = 0
 
@@ -50,112 +57,155 @@ os.chdir("data")
 if plot_dir is not None and not os.path.exists(plot_dir):
     os.makedirs(plot_dir)
 
-# time the simulation
-start_time = time.time()
 
-# initalize wavefront
-wavefronts = objects.Wavefronts(size_m=size_m, resolution=resolution, total_time=total_time, frames=int(total_time/dt), wavelength=wavelength)
-if plot_dir is not None:
-    wavefronts.plot_wavefront(title="Initial Wavefront", filename=f"{plot_dir}/{PLOT_COUNT:02d}_initial_wavefront.png", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.plot_wavefront(title="Initial Wavefront", show=show_plots)
-logging.debug("Initialized wavefront.")
+def run_simulation(use_target=True):
+    global PLOT_COUNT
 
-# Propagate the wavefront by 0.1 meters to the cylindrical lens
-wavefronts.propagate(distance=0.1)
-if plot_dir is not None:
-    wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_0.1m_propagation.png", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", show=show_plots)
-logging.debug("Propagated wavefront to cylindrical lens.")
+    # time the simulation
+    start_time = time.time()
 
-# Apply a cylindrical lens
-cylindrical_lens = objects.CylindricalLens(focal_length=0.1, orientation='horizontal')
-cylindrical_lens.apply(wavefronts)
-logging.debug("Applied cylindrical lens.")
+    # initalize wavefront
+    wavefronts = objects.Wavefronts(size_m=size_m, resolution=resolution, total_time=total_time, frames=int(total_time/dt), wavelength=wavelength)
+    if plot_dir is not None:
+        wavefronts.plot_wavefront(title="Initial Wavefront", filename=f"{plot_dir}/{PLOT_COUNT:02d}_initial_wavefront.png", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.plot_wavefront(title="Initial Wavefront", show=show_plots)
+    logging.info("Initialized wavefront.")
 
-# propagate to focal plane
-wavefronts.propagate(distance=0.1)
-if plot_dir is not None:
-    wavefronts.plot_wavefront(title="Wavefront after Cylindrical Lens", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_cylindrical_lens.png", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.plot_wavefront(title="Wavefront after Cylindrical Lens", show=show_plots)
-logging.debug("Propagated wavefront to focal plane of cylindrical lens, where the SPIFI mask is.")
+    # Propagate the wavefront by 0.1 meters to the cylindrical lens
+    wavefronts.propagate(distance=0.1)
+    if plot_dir is not None:
+        wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_0.1m_propagation.png", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.plot_wavefront(title="Wavefront after 0.1 m Propagation", show=show_plots)
+    logging.info("Propagated wavefront to cylindrical lens.")
 
-# apply spifi mask
-objects.IdealSPIFIMask.apply(wavefronts, min_grating_period=min_grating_period)
-if plot_dir is not None:
-    wavefronts.animate_wavefront(title="Wavefront after SPIFI Mask Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_spifi_mask_animation.mp4", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.animate_wavefront(title="Wavefront after SPIFI Mask Animation", show=show_plots)
-logging.debug("Applied SPIFI mask.")
+    # Apply a cylindrical lens
+    cylindrical_lens = objects.CylindricalLens(focal_length=0.1, orientation='horizontal')
+    cylindrical_lens.apply(wavefronts)
+    logging.info("Applied cylindrical lens.")
 
-# propagate to the next lens
-wavefronts.propagate(distance=0.2)
-if plot_dir is not None:
-    wavefronts.animate_wavefront(title="Wavefront before Imaging Lens Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_imaging_lens_animation.mp4", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.animate_wavefront(title="Wavefront before Imaging Lens Animation", show=show_plots)
-logging.debug("Propagated wavefront to imaging lens.")
+    # propagate to focal plane
+    wavefronts.propagate(distance=0.1)
+    if plot_dir is not None:
+        wavefronts.plot_wavefront(title="Wavefront after Cylindrical Lens", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_cylindrical_lens.png", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.plot_wavefront(title="Wavefront after Cylindrical Lens", show=show_plots)
+    logging.info("Propagated wavefront to focal plane of cylindrical lens, where the SPIFI mask is.")
 
-# apply second lens and propagate to object plane (imaging lens)
-imaging_lens = objects.ConvergingLens(focal_length=0.1)
-imaging_lens.apply(wavefronts)
-wavefronts.propagate(distance=0.2)
-if plot_dir is not None:
-    wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_hitting_target_animation.mp4", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", show=show_plots)
-logging.debug("Applied imaging lens and propagated to object plane.")
+    # apply spifi mask
+    objects.IdealSPIFIMask.apply(wavefronts, min_grating_period=min_grating_period)
+    if plot_dir is not None:
+        wavefronts.animate_wavefront(title="Wavefront after SPIFI Mask Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_spifi_mask_animation.mp4", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.animate_wavefront(title="Wavefront after SPIFI Mask Animation", show=show_plots)
+    logging.info("Applied SPIFI mask.")
 
-# wavefronts hit the target
-target = objects.SiemensStar(wavefronts, radius=siemens_radius, vertical_shift=vertical_shift, num_spokes=num_spokes)
-target.apply(wavefronts)
-if plot_dir is not None:
-    target.plot(wavefronts)
-    wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_hitting_target_animation.mp4", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", show=show_plots)
-logging.debug("Applied Siemens star target.")
+    # propagate to the next lens
+    wavefronts.propagate(distance=0.2)
+    if plot_dir is not None:
+        wavefronts.animate_wavefront(title="Wavefront before Imaging Lens Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_imaging_lens_animation.mp4", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.animate_wavefront(title="Wavefront before Imaging Lens Animation", show=show_plots)
+    logging.info("Propagated wavefront to imaging lens.")
 
-# Propagate to collection lens
-wavefronts.propagate(distance=0.2)
-if plot_dir is not None:
-    wavefronts.animate_wavefront(title="Wavefront before Collection Lens Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_collection_lens_animation.mp4", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.animate_wavefront(title="Wavefront before Collection Lens Animation", show=show_plots)
-logging.debug("Propagated wavefront to collection lens.")
+    # apply second lens and propagate to object plane (imaging lens)
+    imaging_lens = objects.ConvergingLens(focal_length=0.1)
+    imaging_lens.apply(wavefronts)
+    wavefronts.propagate(distance=0.2)
+    if plot_dir is not None:
+        wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_hitting_target_animation.mp4", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", show=show_plots)
+    logging.info("Applied imaging lens and propagated to object plane.")
 
-# Apply collection lens and propagate to detector
-collection_lens = objects.ConvergingLens(focal_length=0.1)
-collection_lens.apply(wavefronts)
-wavefronts.propagate(distance=0.2)
-if plot_dir is not None:
-    wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_at_photodiode_animation.mp4", show=show_plots)
-    PLOT_COUNT += 1
-elif show_plots:
-    wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", show=show_plots)
-logging.debug("Applied collection lens and propagated to photodiode.")
+    # wavefronts hit the target
+    if use_target:
+        target = objects.SiemensStar(wavefronts, radius=siemens_radius, vertical_shift=vertical_shift, num_spokes=num_spokes)
+        target.apply(wavefronts)
+        if plot_dir is not None:
+            target.plot(wavefronts, filename=f"{plot_dir}/{PLOT_COUNT:02d}_siemens_star.png", show=show_plots)
+            PLOT_COUNT += 1
+            wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_hitting_target_animation.mp4", show=show_plots)
+            PLOT_COUNT += 1
+        elif show_plots:
+            wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", show=show_plots)
+        logging.info("Applied Siemens star target.")
 
-# photodiode detects signal
-detector = objects.Photodiode(radius=photodiode_radius)
-detector.detect(wavefronts)
-logging.debug("Photodiode detected signal.")
+    # Propagate to collection lens
+    wavefronts.propagate(distance=0.2)
+    if plot_dir is not None:
+        wavefronts.animate_wavefront(title="Wavefront before Collection Lens Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_collection_lens_animation.mp4", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.animate_wavefront(title="Wavefront before Collection Lens Animation", show=show_plots)
+    logging.info("Propagated wavefront to collection lens.")
 
-time_elapsed = time.time() - start_time
-print(f"Simulation completed in {time_elapsed:.2f} seconds.")
+    # Apply collection lens and propagate to detector
+    collection_lens = objects.ConvergingLens(focal_length=0.1)
+    collection_lens.apply(wavefronts)
+    wavefronts.propagate(distance=0.2)
+    if plot_dir is not None:
+        wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_at_photodiode_animation.mp4", show=show_plots)
+        PLOT_COUNT += 1
+    elif show_plots:
+        wavefronts.animate_wavefront(title="Wavefront at Photodiode Animation", show=show_plots)
+    logging.info("Applied collection lens and propagated to photodiode.")
 
-detector.plot_signal(filename=f"{plot_dir}/{PLOT_COUNT:02d}_photodiode_signal.png", show=show_plots)
-PLOT_COUNT += 1
-detector.image(filename=f"{plot_dir}/{PLOT_COUNT:02d}_photodiode_image.png", show=show_plots)
+    # photodiode detects signal
+    detector = objects.Photodiode(radius=photodiode_radius)
+    detector.detect(wavefronts)
+    logging.info("Photodiode detected signal.")
+
+    time_elapsed = time.time() - start_time
+    print(f"Simulation completed in {time_elapsed:.2f} seconds.")
+
+    if not plot_dir is None:
+        detector.plot_signal(filename=f"{plot_dir}/{PLOT_COUNT:02d}_photodiode_signal.png", show=show_plots)
+        PLOT_COUNT += 1
+        magnitude = detector.image(filename=f"{plot_dir}/{PLOT_COUNT:02d}_spifi_image.png", show=show_plots)
+        np.save(f"{plot_dir}/{PLOT_COUNT:02d}_spifi_image.npy", magnitude)
+        PLOT_COUNT += 1
+
+    print(f"\n\n\nSimulation completed in {time_elapsed:.2f} seconds.\n\n\n")
+
+    return magnitude
+
+target_image = run_simulation(use_target=True)
+
+if (normalize):
+    no_target_image = run_simulation(use_target=False)
+    normalized_image = target_image / no_target_image
+    # Perform Fourier Transform on the signal
+    freq_domain = np.fft.fftshift(np.fft.fft(normalized_image))
+    dt = total_time / len(normalized_image)
+    f = np.fft.fftshift(np.fft.fftfreq(len(normalized_image), d=dt))
+    magnitude = np.abs(freq_domain)
+    if plot_dir is not None:
+        np.save(f"{plot_dir}/{PLOT_COUNT:02d}_spifi_image_normalized.npy", normalized_image)
+
+    # plot 1d image
+    plt.figure()
+    plt.plot(f, magnitude)
+    plt.title("SPIFI Signal Frequency Domain")
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Magnitude (arbitrary units)")
+    plt.yscale('log')
+    plt.grid()
+    if not plot_dir is None:
+        plt.savefig(f"{plot_dir}/{PLOT_COUNT:02d}_spifi_image_normalized.png")
+        PLOT_COUNT += 1
+    if show_plots:
+        plt.show()
+    plt.close()
+
+
 
 
 
