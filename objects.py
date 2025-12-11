@@ -2,14 +2,17 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import copy
 
-class Wavefront:
-    def __init__(self, size_m, resolution, wavelength):
+class Wavefronts:
+    def __init__(self, size_m, resolution, total_time, frames, wavelength):
         self.L = size_m # Phyisical size of the grid (meters)
         self.N = resolution # number of pixels N x N
         self.lam = wavelength # wavelength (meters)
         self.k = 2 * np.pi / self.lam # wave number (1/meters)
+        self.T = total_time # total time for time-varying wavefronts (seconds)
+        self.frames = frames # number of time frames
 
         # create coordinate grid
         dx = self.L / self.N
@@ -17,44 +20,79 @@ class Wavefront:
         self.X, self.Y = np.meshgrid(x, x)
 
         # initial gaussian beam
-        self.field = np.ones((self.N, self.N), dtype=complex)
-        self.field *= np.exp(- (self.X**2 + self.Y**2) / (0.1 * self.L)**2)
+        init_field = np.ones((self.N, self.N), dtype=complex)
+        # TODO uncomment this init_field *= np.exp(- (self.X**2 + self.Y**2) / (0.1 * self.L)**2)
+
+        # 3d numpy array to track field through time
+        self.fields = np.empty((frames, resolution, resolution), dtype=complex)
+        self.fields[:] = init_field
 
     def propagate(self, distance):
         """ Propagate the wavefront by distance using Angular Spectrum method. """
-        # Fourier transform of the field (fftshift to center zero frequency)
-        U_f = np.fft.fftshift(np.fft.fft2(self.field))
+        for i in range(len(self.fields)):
+            # Fourier transform of the fields (fftshift to center zero frequency)
+            U_f = np.fft.fftshift(np.fft.fft2(self.fields[i]))
 
-        # Frequency coordinates
-        fx = np.fft.fftshift(np.fft.fftfreq(self.N, d=self.L/self.N))
-        FX, FY = np.meshgrid(fx, fx)
+            # Frequency coordinates
+            fx = np.fft.fftshift(np.fft.fftfreq(self.N, d=self.L/self.N))
+            FX, FY = np.meshgrid(fx, fx)
 
-        # Transfer function for propagation
-        argument = (1/self.lam**2) - FX**2 - FY**2
-        argument = np.maximum(argument, 0) # avoid negative values under sqrt (no evanescent waves)
-        # TODO modify to handle evanescent waves if needed
-        phase = 2*np.pi * distance * np.sqrt(argument)
-        H = np.exp(1j * phase)
+            # Transfer function for propagation
+            argument = (1/self.lam**2) - FX**2 - FY**2
+            argument = np.maximum(argument, 0) # avoid negative values under sqrt (no evanescent waves)
+            # TODO modify to handle evanescent waves if needed
+            phase = 2*np.pi * distance * np.sqrt(argument)
+            H = np.exp(1j * phase)
 
-        # Apply transfer function
-        U_f_propagated = U_f * H
+            # Apply transfer function
+            U_f_propagated = U_f * H
 
-        # Inverse Fourier transform to get propagated field
-        self.field = np.fft.ifft2(np.fft.ifftshift(U_f_propagated))
+            # Inverse Fourier transform to get propagated field
+            self.fields[i] = np.fft.ifft2(np.fft.ifftshift(U_f_propagated))
     
-    def get_intensity(self):
+    def get_intensities(self):
         """ Return the intensity of the wavefront."""
-        return np.abs(self.field)**2
+        intensities = np.empty(self.frames, dtype=np.ndarray)
+        for i in range(len(self.fields)):
+            field = self.fields[i]
+            intensities[i] = np.abs(field)**2
+        return intensities
     
-    def plot_wavefront(self, title="Wavefront Intensity"):
-        """ Plot the intensity of the wavefront. """
-        intensity = self.get_intensity()
+    def plot_wavefront(self, title="Wavefront Intensity", filename=None, show=False):
+        """ Plot the intensity of the wavefront for frame 0. """
+        intensity = np.abs(self.fields[0])**2
         plt.imshow(intensity, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2))
         plt.colorbar(label='Intensity')
         plt.title(title)
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
-        plt.show()
+        if not filename is None:
+            plt.savefig(filename)
+        if show:
+            plt.show()
+        plt.close()
+    
+    def animate_wavefront(self, title="Wavefront Intensity Animation", filename=None, show=False):
+        """ Create an animation of the wavefront intensity over time. """
+        fig, ax = plt.subplots()
+        intensities = self.get_intensities()
+        im = ax.imshow(intensities[0], extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), animated=True)
+        plt.colorbar(im, ax=ax, label='Intensity')
+        plt.xlabel('X (m)')
+        plt.ylabel('Y (m)')
+        plt.title(title)
+
+        def update(frame):
+            im.set_array(intensities[frame])
+            return [im]
+        
+        ani = animation.FuncAnimation(fig, update, frames=self.frames, blit=True, interval=25)
+        if not filename is None:
+            ani.save(filename, writer='ffmpeg')
+        if show:
+            plt.show()
+        plt.close()
+
 
 # --- Component Classes ---
 
@@ -63,38 +101,65 @@ class OpticalElement:
     def apply(self, wavefront):
         raise NotImplementedError("This method should be implemented by subclasses.")
     
+    
 class ConvergingLens(OpticalElement):
     def __init__(self, focal_length):
         self.focal_length = focal_length
     
-    def apply(self, wavefront):
+    def apply(self, wavefronts):
         """ Apply lens phase transformation to the wavefront. (Thin lens approximation) """
-        k = wavefront.k
-        X, Y = wavefront.X, wavefront.Y
+        k = wavefronts.k
+        X, Y = wavefronts.X, wavefronts.Y
         phase = - (k / (2 * self.focal_length)) * (X**2 + Y**2)
         lens_phase = np.exp(1j * phase)
-        wavefront.field *= lens_phase
+        wavefronts.fields *= lens_phase
+
 
 class CylindricalLens(OpticalElement):
     def __init__(self, focal_length, orientation='horizontal'):
         self.focal_length = focal_length
         self.orientation = orientation
     
-    def apply(self, wavefront):
+    def apply(self, wavefronts):
         """ Apply cylindrical lens phase transformation to the wavefront. (Thin lens approximation) """
-        k = wavefront.k
-        X, Y = wavefront.X, wavefront.Y
+        k = wavefronts.k
+        X, Y = wavefronts.X, wavefronts.Y
         if self.orientation == 'horizontal':
             phase = - (k / (2 * self.focal_length)) * (Y**2)
         else: # vertical
             phase = - (k / (2 * self.focal_length)) * (X**2)
         lens_phase = np.exp(1j * phase)
-        wavefront.field *= lens_phase
+        wavefronts.fields *= lens_phase
+
 
 class Target(OpticalElement):
     """ Base class for targets: objects that we want to image using wavefronts. """
     def apply(self, wavefront):
         raise NotImplementedError("This method should be implemented by subclasses.")
+    
+
+class IdealSPIFIMask(OpticalElement):
+    """ SPIFI mask that is idealized (true sine wave pattern)."""
+    @staticmethod
+    def apply(wavefronts, min_grating_period):
+        """
+        Takes in a wavefront, which has T,X,Y, and applies the SPIFI mask over time.
+        """
+        total_time = wavefronts.T
+        dt = total_time / wavefronts.frames
+        N = wavefronts.N
+        x = np.linspace(-wavefronts.L/2, wavefronts.L/2, N)
+        X, Y = np.meshgrid(x, x)
+        for i in range(len(wavefronts.fields)): # iterate through time frames
+            t = -total_time/2 + i * dt
+            spatial_freq = (2 / (total_time * min_grating_period)) * t
+            spifi_pattern = 0.5 * (1 + np.cos(2 * np.pi * spatial_freq * X))
+            wavefronts.fields[i] *= spifi_pattern
+
+
+class RealSPIFIMask(OpticalElement):
+    """ SPIFI mask that is more realistic (binary pattern with partial pixel values)."""
+    
 
 class SiemensStar(Target):
     """ Siemens star target with anti-aliasing. """
@@ -148,81 +213,71 @@ class SiemensStar(Target):
         
         return anti_aliased_image
     
-    def apply(self, wavefront):
+    def apply(self, wavefronts):
         """ Apply the Siemens star mask to the wavefront intensity. """
-        wavefront.field *= self.image
+        wavefronts.fields *= self.image
 
-    def plot(self, wavefront=None):
+    def plot(self, wavefronts=None, filename=None, show=False):
         """ Plot the Siemens star target with optionally overlayed wavefront intensity. """
         plt.imshow(self.image, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), cmap='gray')
-        if wavefront is not None:
-            intensity = wavefront.get_intensity()
-            plt.imshow(intensity, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), alpha=0.5)
+        # if wavefronts is not None:
+        #     intensity = wavefront.get_intensity()
+        #     plt.imshow(intensity, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), alpha=0.5)
         #plt.colorbar(label='Transmission')
         plt.title("Siemens Star Target")
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
-        plt.show()
+        if show:
+            plt.show()
+        if not filename is None:
+            plt.savefig(filename)
 
     
-class Photodiode(OpticalElement):
+class Photodiode():
     def __init__(self, radius):
         self.radius = radius
+        self.signal = np.array([]) # used to store detected signal over time
+        self.T = 0
     
-    def detect(self, wavefront):
+    def detect(self, wavefronts):
         """ Simulate photodiode detection by integrating intensity over its area. """
-        intensity = wavefront.get_intensity()
-        dx = wavefront.L / wavefront.N
-        radius_pixels = int(self.radius / dx)
-        center = wavefront.N // 2
+        self.signal = np.empty(wavefronts.frames)
+        self.T = wavefronts.T
+        intensities = wavefronts.get_intensities()
+        for i in range(wavefronts.frames):
+            intensity = intensities[i]
+            dx = wavefronts.L / wavefronts.N
+            radius_pixels = int(self.radius / dx)
+            center = wavefronts.N // 2
 
-        y, x = np.ogrid[-center:wavefront.N-center, -center:wavefront.N-center]
-        mask = x**2 + y**2 <= radius_pixels**2
+            y, x = np.ogrid[-center:wavefronts.N-center, -center:wavefronts.N-center]
+            mask = x**2 + y**2 <= radius_pixels**2
 
-        detected_signal = np.sum(intensity[mask]) * (dx**2) # integrate intensity over area
-        return detected_signal
-
-class IdealSPIFIMask(OpticalElement):
-    """ SPIFI mask that is idealized (true sine wave pattern)."""
-    def apply(self, wavefront, total_time, dt, min_grating_period):
-        """
-        Takes in a wavefront, which has X,Y
-        Outputs total_time/dt frames of the wavefront after applying the SPIFI mask at each time step.
-        """
-        N = wavefront.N
-        x = np.linspace(-wavefront.L/2, wavefront.L/2, N)
-        X, Y = np.meshgrid(x, x)
-        frames = []
-        for t in np.arange(-total_time/2, total_time/2, dt):
-            spatial_freq = (2 / (total_time * min_grating_period)) * t
-            spifi_pattern = 0.5 * (1 + np.cos(2 * np.pi * spatial_freq * X))
-            wavefront_copy = copy.deepcopy(wavefront)
-            wavefront_copy.field *= spifi_pattern
-            frames.append(wavefront_copy)
-        return frames
-
-class RealSPIFIMask(OpticalElement):
-    """ SPIFI mask that is more realistic (binary pattern with partial pixel values)."""
-
-class SPIFISignalToImageConverter:
-    """ Converts the time-varying signal from the photodiode into a 1D image. """
-    @staticmethod
-    def signal_to_image(signal, dt):
-        """
-        Docstring for signal_to_image
+            detected_signal = np.sum(intensity[mask]) * (dx**2) # integrate intensity over area
+            self.signal[i] = detected_signal
         
-        :param signal: signal as a function of time (1D numpy array)
-        :param dt: time between each frame in the signal (in seconds)
-        :param image_size: sidelength of the output square image in m (wavelength.L)
-        """
-        # Perform Fourier Transform on the signal
-        freq_domain = np.fft.fftshift(np.fft.fft(signal))
-        f = np.fft.fftshift(np.fft.fftfreq(len(signal), d=dt))
+    def plot_signal(self, filename=None, show=False):
+        """ Plot the detected photodiode signal over time. """
+        plt.figure()
+        time = np.linspace(0, self.T, len(self.signal))
+        plt.plot(time, self.signal)
+        plt.title("Photodiode Detected Signal Over Time")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Detected Signal (arbitrary units (energy?))")
+        plt.grid()
+        if not filename is None:
+            plt.savefig(filename)
+        if show:
+            plt.show()
+        plt.close()
+    
+    def image(self, filename=None, show=False):
+        """ Convert the detected signal into a SPIFI image using Fourier Transform. """
+         # Perform Fourier Transform on the signal
+        freq_domain = np.fft.fftshift(np.fft.fft(self.signal))
+        dt = self.T / len(self.signal)
+        f = np.fft.fftshift(np.fft.fftfreq(len(self.signal), d=dt))
         magnitude = np.abs(freq_domain)
-
-        # TODO determine if this works/makes sense # Normalize and reshape to form an image
-        # image = magnitude / np.max(magnitude)
-        # image_2d = image.reshape((int(np.sqrt(len(image))), int(np.sqrt(len(image)))))
 
         # plot 1d image
         plt.figure()
@@ -231,16 +286,12 @@ class SPIFISignalToImageConverter:
         plt.xlabel("Frequency (Hz)")
         plt.ylabel("Magnitude (arbitrary units)")
         plt.grid()
-        plt.show()
+        if not filename is None:
+            plt.savefig(filename)
+        if show:
+            plt.show()
+        plt.close()
 
         return magnitude
     
-
-
-
-
-
-
-
-#TODO spifi mask, spifi signal to image converter, (maybe more samples if I have time?)
 
