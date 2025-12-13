@@ -20,12 +20,12 @@ class Wavefronts:
 
         # create coordinate grid
         dx = self.L / self.N
-        x = np.linspace(-self.L/2, self.L/2 - dx, self.N)
+        x = np.linspace(0, self.L - dx, self.N)
         self.X, self.Y = np.meshgrid(x, x)
 
         # initial gaussian beam
         init_field = np.ones((self.N, self.N), dtype=complex)
-        init_field *= np.exp(- (self.X**2 + self.Y**2) / (0.3 * self.L)**2)
+        init_field *= np.exp(- ((self.X - self.L/2)**2 + (self.Y - self.L/2)**2) / (0.3 * self.L)**2)
 
         # 3d numpy array to track field through time
         self.fields = np.empty((frames, resolution, resolution), dtype=complex)
@@ -59,7 +59,7 @@ class Wavefronts:
     def plot_wavefront(self, title="Wavefront Intensity", filename=None, show=False):
         """ Plot the intensity of the wavefront for frame 0. """
         intensity = np.abs(self.fields[0])**2
-        plt.imshow(intensity, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2))
+        plt.imshow(intensity, extent=(0, self.L, 0, self.L))
         plt.colorbar(label='Intensity')
         plt.title(title)
         plt.xlabel('X (m)')
@@ -74,7 +74,7 @@ class Wavefronts:
         """ Create an animation of the wavefront intensity over time. """
         fig, ax = plt.subplots()
         intensities = self.get_intensities()
-        im = ax.imshow(intensities[0], extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), animated=True)
+        im = ax.imshow(intensities[0], extent=(0, self.L, 0, self.L), animated=True)
         plt.colorbar(im, ax=ax, label='Intensity')
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
@@ -107,8 +107,8 @@ class ConvergingLens(OpticalElement):
     def apply(self, wavefronts):
         """ Apply lens phase transformation to the wavefront. (Thin lens approximation) """
         k = wavefronts.k
-        X, Y = wavefronts.X, wavefronts.Y
-        phase = - (k / (2 * self.focal_length)) * (X**2 + Y**2)
+        X, Y, L = wavefronts.X, wavefronts.Y, wavefronts.L
+        phase = - (k / (2 * self.focal_length)) * ((X - L/2)**2 + (Y - L/2)**2)
         lens_phase = np.exp(1j * phase)
         # Broadcast lens phase to all frames efficiently
         wavefronts.fields *= lens_phase[np.newaxis, :, :]
@@ -122,11 +122,11 @@ class CylindricalLens(OpticalElement):
     def apply(self, wavefronts):
         """ Apply cylindrical lens phase transformation to the wavefront. (Thin lens approximation) """
         k = wavefronts.k
-        X, Y = wavefronts.X, wavefronts.Y
+        X, Y, L = wavefronts.X, wavefronts.Y, wavefronts.L
         if self.orientation == 'horizontal':
-            phase = - (k / (2 * self.focal_length)) * (Y**2)
+            phase = - (k / (2 * self.focal_length)) * ((Y - L/2)**2)
         else: # vertical
-            phase = - (k / (2 * self.focal_length)) * (X**2)
+            phase = - (k / (2 * self.focal_length)) * ((X - L/2)**2)
         lens_phase = np.exp(1j * phase)
         # Broadcast lens phase to all frames efficiently
         wavefronts.fields *= lens_phase[np.newaxis, :, :]
@@ -148,7 +148,9 @@ class IdealSPIFIMask(OpticalElement):
         total_time = wavefronts.T
         dt = total_time / wavefronts.frames
         N = wavefronts.N
-        x = np.linspace(-wavefronts.L/2, wavefronts.L/2, N)
+        L = wavefronts.L
+        dx = L / N
+        x = wavefronts.X[0]  # x coordinates along one axis
         X = np.meshgrid(x, x)[0]  # Only need X coordinate
         
         # Pre-compute time array for all frames
@@ -223,9 +225,9 @@ class SiemensStar(Target):
 
     def plot(self, wavefronts=None, filename=None, show=False):
         """ Plot the Siemens star target with optionally overlayed wavefront intensity. """
-        plt.imshow(self.image, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), cmap='gray')
+        plt.imshow(self.image, extent=(0, self.L, 0, self.L), cmap='gray')
         # plot horizontal line at y=0
-        plt.axhline(0, color='red', linestyle='--', label='y=0 line')
+        plt.axhline(self.L/2, color='red', linestyle='--', label='y=0 line')
         plt.title("Siemens Star Target")
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')

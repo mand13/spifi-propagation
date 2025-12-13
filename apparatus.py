@@ -19,14 +19,15 @@ import objects
 # --- MODIFY SIMULATION PARAMETERS BELOW ---
 
 # --- Simulation Setup ---
-total_time = 0.1  # total simulation time in seconds
-dt = 0.000048828125       # time step in seconds
-size_m = 0.005    # size of the wavefront in meters
-resolution = 2048   # resolution of the wavefront grid (num pixels per side)
+total_time = 12  # total simulation time in seconds
+num_frames = 2048 # total number of time frames
+dt = total_time / num_frames       # time step in seconds
+size_m = 0.025    # size of the wavefront in meters
+resolution = 1024   # resolution of the wavefront grid (num pixels per side)
 wavelength = 1e-6 # wavelength of light in meters
 
 # --- SPIFI Mask Parameters ---
-min_grating_period = (size_m / resolution) * 3 # minimum grating period in meters
+min_grating_period = (size_m / resolution) * 1 # minimum grating period in meters
 
 # --- Target Parameters ---
 siemens_radius = 0.004 # radius of Siemens star in meters
@@ -37,7 +38,7 @@ vertical_shift = 0.002 # vertical shift of Siemens star center in meters
 photodiode_radius = 0.01 # radius of photodiode in meters
 
 # --- Plotting and Output ---
-plot_dir = "test8"
+plot_dir = "new3"
 show_plots = False
 normalize = True # run a second simulation without the target for normalization
 logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
