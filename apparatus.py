@@ -23,9 +23,10 @@ total_time = 12  # total simulation time in seconds
 num_frames = 2048 # total number of time frames
 dt = total_time / num_frames       # time step in seconds
 size_m = 0.025    # size of the wavefront in meters
-resolution = 1024   # resolution of the wavefront grid (num pixels per side)
+resolution = 2048   # resolution of the wavefront grid (num pixels per side)
 dx = size_m / resolution  # spatial step in meters
 wavelength = 1e-6 # wavelength of light in meters
+flat = False # use flat wavefront instead of gaussian beam
 
 # --- Target Parameters ---
 siemens_radius = 0.004 # radius of Siemens star in meters
@@ -36,7 +37,7 @@ vertical_shift = 0.002 # vertical shift of Siemens star center in meters
 photodiode_radius = 0.01 # radius of photodiode in meters
 
 # --- Plotting and Output ---
-plot_dir = "newer7"
+plot_dir = "newer8"
 show_plots = False
 normalize = True # run a second simulation without the target for normalization
 logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
@@ -90,7 +91,7 @@ def run_simulation(use_target=True):
     start_time = time.time()
 
     # initalize wavefront
-    wavefronts = objects.Wavefronts(size_m=size_m, resolution=resolution, total_time=total_time, frames=int(total_time/dt), wavelength=wavelength)
+    wavefronts = objects.Wavefronts(size_m=size_m, resolution=resolution, total_time=total_time, frames=int(total_time/dt), wavelength=wavelength, flat=flat)
     if plot_dir is not None:
         wavefronts.plot_wavefront(title="Initial Wavefront", filename=f"{plot_dir}/{PLOT_COUNT:02d}_initial_wavefront.png", show=show_plots)
         PLOT_COUNT += 1
@@ -143,24 +144,24 @@ def run_simulation(use_target=True):
     imaging_lens = objects.ConvergingLens(focal_length=0.1)
     imaging_lens.apply(wavefronts)
     wavefronts.propagate(distance=0.2)
-    if plot_dir is not None:
-        wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_hitting_target_animation.mp4", show=show_plots)
-        PLOT_COUNT += 1
-    elif show_plots:
-        wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", show=show_plots)
+    # if plot_dir is not None:
+    #     wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", filename=f"{plot_dir}/{PLOT_COUNT:02d}_before_hitting_target_animation.mp4", show=show_plots)
+    #     PLOT_COUNT += 1
+    # elif show_plots:
+    #     wavefronts.animate_wavefront(title="Wavefront before Hitting Target (first frame)", show=show_plots)
     logging.info("Applied imaging lens and propagated to object plane.")
 
     # wavefronts hit the target
     if use_target:
         target = objects.SiemensStar(wavefronts, radius=siemens_radius, vertical_shift=vertical_shift, num_spokes=num_spokes)
         target.apply(wavefronts)
-        if plot_dir is not None:
-            target.plot(wavefronts, filename=f"{plot_dir}/{PLOT_COUNT:02d}_siemens_star.png", show=show_plots)
-            PLOT_COUNT += 1
-            wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_hitting_target_animation.mp4", show=show_plots)
-            PLOT_COUNT += 1
-        elif show_plots:
-            wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", show=show_plots)
+        # if plot_dir is not None:
+        #     target.plot(wavefronts, filename=f"{plot_dir}/{PLOT_COUNT:02d}_siemens_star.png", show=show_plots)
+        #     PLOT_COUNT += 1
+        #     wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_hitting_target_animation.mp4", show=show_plots)
+        #     PLOT_COUNT += 1
+        # elif show_plots:
+        #     wavefronts.animate_wavefront(title="Wavefront after Hitting Target Animation", show=show_plots)
         logging.info("Applied Siemens star target.")
 
     # Propagate to collection lens
@@ -239,6 +240,7 @@ with open(f"{plot_dir}/apparatus_parameters.txt", "w") as f:
     f.write(f"size_m = {size_m}\n")
     f.write(f"resolution = {resolution}\n")
     f.write(f"wavelength = {wavelength}\n")
+    f.write(f"flat = {flat}\n")
     f.write(f"siemens_radius = {siemens_radius}\n")
     f.write(f"num_spokes = {num_spokes}\n")
     f.write(f"vertical_shift = {vertical_shift}\n")

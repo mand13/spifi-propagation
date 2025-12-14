@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 class Wavefronts:
-    def __init__(self, size_m, resolution, total_time, frames, wavelength):
+    def __init__(self, size_m, resolution, total_time, frames, wavelength, flat=False):
         self.L = size_m # Phyisical size of the grid (meters)
         self.N = resolution # number of pixels N x N
         self.lam = wavelength # wavelength (meters)
@@ -25,7 +25,8 @@ class Wavefronts:
 
         # initial gaussian beam
         init_field = np.ones((self.N, self.N), dtype=complex)
-        init_field *= np.exp(- ((self.X)**2 + (self.Y)**2) / (0.3 * self.L)**2)
+        if not flat:
+            init_field *= np.exp(- ((self.X)**2 + (self.Y)**2) / (0.3 * self.L)**2)
 
         # 3d numpy array to track field through time
         self.fields = np.empty((frames, resolution, resolution), dtype=complex)
