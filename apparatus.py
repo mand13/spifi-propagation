@@ -24,10 +24,8 @@ num_frames = 2048 # total number of time frames
 dt = total_time / num_frames       # time step in seconds
 size_m = 0.025    # size of the wavefront in meters
 resolution = 1024   # resolution of the wavefront grid (num pixels per side)
+dx = size_m / resolution  # spatial step in meters
 wavelength = 1e-6 # wavelength of light in meters
-
-# --- SPIFI Mask Parameters ---
-min_grating_period = (size_m / resolution) * 1 # minimum grating period in meters
 
 # --- Target Parameters ---
 siemens_radius = 0.004 # radius of Siemens star in meters
@@ -38,7 +36,7 @@ vertical_shift = 0.002 # vertical shift of Siemens star center in meters
 photodiode_radius = 0.01 # radius of photodiode in meters
 
 # --- Plotting and Output ---
-plot_dir = "new3"
+plot_dir = "newer7"
 show_plots = False
 normalize = True # run a second simulation without the target for normalization
 logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
@@ -46,12 +44,22 @@ logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
 fast_debug = False
 # -- SUPER FAST SIM PARAMETERS FOR TESTING ---
 if fast_debug:
-    dt = 0.001
-    resolution = 256
-    min_grating_period = (size_m / resolution) * 10
+    num_frames = 256
+    dt = total_time / num_frames
+    resolution = 128
+    dx = size_m / resolution
     num_spokes = 8
 
+# --- Calculate ideal SPIFI parameters based on resolution ---
+S = 7 # resolution spifi safety factor (determined to make any value of K work well)
+K = min(2 / (S * total_time * dx), 1 / (2 * size_m * S * dt), 1 / (14 * size_m * dt)) # spifi spatial chirp parameter
+f_c = 1.5 * K * size_m # center frequency of SPIFI mask
+
 # --- END OF MODIFIABLE PARAMETERS ---
+
+
+
+
 
 
 
@@ -114,7 +122,7 @@ def run_simulation(use_target=True):
     logging.info("Propagated wavefront to focal plane of cylindrical lens, where the SPIFI mask is.")
 
     # apply spifi mask
-    objects.IdealSPIFIMask.apply(wavefronts, min_grating_period=min_grating_period)
+    objects.IdealSPIFIMask.apply(wavefronts, K=K, f_c=f_c)
     if plot_dir is not None:
         wavefronts.animate_wavefront(title="Wavefront after SPIFI Mask Animation", filename=f"{plot_dir}/{PLOT_COUNT:02d}_after_spifi_mask_animation.mp4", show=show_plots)
         PLOT_COUNT += 1
@@ -176,7 +184,7 @@ def run_simulation(use_target=True):
     # logging.info("Applied collection lens and propagated to photodiode.")
 
     # photodiode detects signal
-    detector = objects.Photodiode(radius=photodiode_radius)
+    detector = objects.Photodiode()
     detector.detect(wavefronts)
     logging.info("Photodiode detected signal.")
 
@@ -226,17 +234,19 @@ global_elapsed_time = time.time() - global_start_time
 print(f"Total script time: {global_elapsed_time:.2f} seconds.")
 
 with open(f"{plot_dir}/apparatus_parameters.txt", "w") as f:
-    f.write(f"total_time = {global_elapsed_time}\n")
+    f.write(f"total_time = {total_time}\n")
     f.write(f"dt = {dt}\n")
     f.write(f"size_m = {size_m}\n")
     f.write(f"resolution = {resolution}\n")
     f.write(f"wavelength = {wavelength}\n")
-    f.write(f"min_grating_period = {min_grating_period}\n")
     f.write(f"siemens_radius = {siemens_radius}\n")
     f.write(f"num_spokes = {num_spokes}\n")
     f.write(f"vertical_shift = {vertical_shift}\n")
-    f.write(f"photodiode_radius = {photodiode_radius}\n")
+    f.write(f"S = {S}\n")
+    f.write(f"K = {K}\n")
+    f.write(f"f_c = {f_c}\n")
     f.write(f"normalize = {normalize}\n")
+    f.write(f"Elapsed Simulation Time = {global_elapsed_time:.2f} seconds\n")
 
 
 

@@ -20,12 +20,12 @@ class Wavefronts:
 
         # create coordinate grid
         dx = self.L / self.N
-        x = np.linspace(0, self.L - dx, self.N)
+        x = np.linspace(-self.L/2, self.L/2 - dx, self.N)
         self.X, self.Y = np.meshgrid(x, x)
 
         # initial gaussian beam
         init_field = np.ones((self.N, self.N), dtype=complex)
-        init_field *= np.exp(- ((self.X - self.L/2)**2 + (self.Y - self.L/2)**2) / (0.3 * self.L)**2)
+        init_field *= np.exp(- ((self.X)**2 + (self.Y)**2) / (0.3 * self.L)**2)
 
         # 3d numpy array to track field through time
         self.fields = np.empty((frames, resolution, resolution), dtype=complex)
@@ -108,7 +108,7 @@ class ConvergingLens(OpticalElement):
         """ Apply lens phase transformation to the wavefront. (Thin lens approximation) """
         k = wavefronts.k
         X, Y, L = wavefronts.X, wavefronts.Y, wavefronts.L
-        phase = - (k / (2 * self.focal_length)) * ((X - L/2)**2 + (Y - L/2)**2)
+        phase = - (k / (2 * self.focal_length)) * ((X)**2 + (Y)**2)
         lens_phase = np.exp(1j * phase)
         # Broadcast lens phase to all frames efficiently
         wavefronts.fields *= lens_phase[np.newaxis, :, :]
@@ -124,9 +124,9 @@ class CylindricalLens(OpticalElement):
         k = wavefronts.k
         X, Y, L = wavefronts.X, wavefronts.Y, wavefronts.L
         if self.orientation == 'horizontal':
-            phase = - (k / (2 * self.focal_length)) * ((Y - L/2)**2)
+            phase = - (k / (2 * self.focal_length)) * ((Y)**2)
         else: # vertical
-            phase = - (k / (2 * self.focal_length)) * ((X - L/2)**2)
+            phase = - (k / (2 * self.focal_length)) * ((X)**2)
         lens_phase = np.exp(1j * phase)
         # Broadcast lens phase to all frames efficiently
         wavefronts.fields *= lens_phase[np.newaxis, :, :]
@@ -141,9 +141,11 @@ class Target(OpticalElement):
 class IdealSPIFIMask(OpticalElement):
     """ SPIFI mask that is idealized (true sine wave pattern)."""
     @staticmethod
-    def apply(wavefronts, min_grating_period):
+    def apply(wavefronts, K, f_c):
         """
         Takes in a wavefront, which has T,X,Y, and applies the SPIFI mask over time.
+        K is the spifi chirp parameter
+        f_c is the center frequency of the SPIFI mask
         """
         total_time = wavefronts.T
         dt = total_time / wavefronts.frames
@@ -156,11 +158,8 @@ class IdealSPIFIMask(OpticalElement):
         # Pre-compute time array for all frames
         frame_indices = np.arange(wavefronts.frames)
         t_array = -total_time/2 + frame_indices * dt
-        spatial_freq_array = (2 / (total_time * min_grating_period)) * t_array
-        
-        for i in range(len(wavefronts.fields)): # iterate through time frames
-            spifi_pattern = 0.5 * (1 + np.cos(2 * np.pi * spatial_freq_array[i] * X))
-            wavefronts.fields[i] *= spifi_pattern
+        spifi_pattern = 0.5 * (1 + np.cos(2 * np.pi * (K * X + f_c) * t_array[:, np.newaxis, np.newaxis]))
+        wavefronts.fields *= spifi_pattern
 
 
 class RealSPIFIMask(OpticalElement):
@@ -225,9 +224,9 @@ class SiemensStar(Target):
 
     def plot(self, wavefronts=None, filename=None, show=False):
         """ Plot the Siemens star target with optionally overlayed wavefront intensity. """
-        plt.imshow(self.image, extent=(0, self.L, 0, self.L), cmap='gray')
+        plt.imshow(self.image, extent=(-self.L/2, self.L/2, -self.L/2, self.L/2), cmap='gray')
         # plot horizontal line at y=0
-        plt.axhline(self.L/2, color='red', linestyle='--', label='y=0 line')
+        plt.axhline(0, color='red', linestyle='--', label='y=0 line')
         plt.title("Siemens Star Target")
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
@@ -239,12 +238,11 @@ class SiemensStar(Target):
 
     
 class Photodiode():
-    def __init__(self, radius):
-        self.radius = radius
+    def __init__(self):
         self.signal = np.array([]) # used to store detected signal over time
         self.T = 0
     
-    def detect(self, wavefronts, use_radius_mask=False):
+    def detect(self, wavefronts):
         """ Simulate photodiode detection by integrating intensity over its area. """
         self.signal = np.empty(wavefronts.frames)
         self.T = wavefronts.T
@@ -252,22 +250,10 @@ class Photodiode():
         
         # Pre-compute circular mask once (avoid recalculation per frame)
         dx = wavefronts.L / wavefronts.N
-        radius_pixels = int(self.radius / dx)
-        center = wavefronts.N // 2
-        y, x = np.ogrid[-center:wavefronts.N-center, -center:wavefronts.N-center]
 
-        if use_radius_mask:
-            mask = x**2 + y**2 <= radius_pixels**2
-        
-            # Apply mask to all frames efficiently
-            for i in range(wavefronts.frames):
-                detected_signal = np.sum(intensities[i][mask]) * (dx**2) # integrate intensity over area
-                self.signal[i] = detected_signal
-        else:
-            # No mask, integrate over entire wavefront
-            for i in range(wavefronts.frames):
-                detected_signal = np.sum(intensities[i]) * (dx**2) # integrate intensity over area
-                self.signal[i] = detected_signal
+        for i in range(wavefronts.frames):
+            detected_signal = np.sum(intensities[i]) * (dx**2) # integrate intensity over area
+            self.signal[i] = detected_signal
         
     def plot_signal(self, filename=None, show=False):
         """ Plot the detected photodiode signal over time. """
