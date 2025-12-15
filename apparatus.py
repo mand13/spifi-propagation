@@ -26,18 +26,18 @@ size_m = 0.025    # size of the wavefront in meters
 resolution = 2048   # resolution of the wavefront grid (num pixels per side)
 dx = size_m / resolution  # spatial step in meters
 wavelength = 1e-6 # wavelength of light in meters
-flat = False # use flat wavefront instead of gaussian beam
+flat = False # start with flat wavefront or Gaussian beam?
 
 # --- Target Parameters ---
 siemens_radius = 0.004 # radius of Siemens star in meters
 num_spokes = 32 # number of spokes in Siemens star
-vertical_shift = 0.002 # vertical shift of Siemens star center in meters
+vertical_shift = 0.001 # vertical shift of Siemens star center in meters
 
 # --- Photodiode Parameters ---
 photodiode_radius = 0.01 # radius of photodiode in meters
 
 # --- Plotting and Output ---
-plot_dir = "newer8"
+plot_dir = "newer9"
 show_plots = False
 normalize = True # run a second simulation without the target for normalization
 logging.basicConfig(level=logging.INFO) # Set the root logger level to INFO
@@ -53,7 +53,7 @@ if fast_debug:
 
 # --- Calculate ideal SPIFI parameters based on resolution ---
 S = 7 # resolution spifi safety factor (determined to make any value of K work well)
-K = min(2 / (S * total_time * dx), 1 / (2 * size_m * S * dt), 1 / (14 * size_m * dt)) # spifi spatial chirp parameter
+K = min(2 / (S * total_time * dx), 1 / (2 * size_m * S * dt)) # modulation chirp parameter
 f_c = 1.5 * K * size_m # center frequency of SPIFI mask
 
 # --- END OF MODIFIABLE PARAMETERS ---
